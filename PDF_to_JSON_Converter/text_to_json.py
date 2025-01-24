@@ -7,10 +7,10 @@ def parse_text_to_structure(raw_text_path):
     structured_data = []
     current_chapter = None
     current_section = None
-    current_chapter_number = None  # To track the active chapter number
 
-    # Regular expressions to detect chapters and sections
-    chapter_pattern = re.compile(r"^CHAPTER (\d+)\b", re.IGNORECASE)
+    # Patterns for chapters and sections
+    chapter_pattern_large = re.compile(r"^Chapter (\d+)\s*[:|-]?\s*(.+)?$", re.IGNORECASE)
+    chapter_pattern_small = re.compile(r"^\d+\s+CHAPTER (\d+)\.\s+(.+)", re.IGNORECASE)
     section_pattern = re.compile(r"^(\d+\.\d+)\s+(.+)")
     page_marker_pattern = re.compile(r"^--- Page \d+ ---")
 
@@ -24,25 +24,32 @@ def parse_text_to_structure(raw_text_path):
         if not line or page_marker_pattern.match(line):
             continue
 
-        # Check for chapter headers
-        chapter_match = chapter_pattern.match(line)
-        if chapter_match:
-            chapter_number = chapter_match.group(1)
-            # Only create a new chapter if the chapter number changes
-            if chapter_number != current_chapter_number:
-                # Save the previous chapter
-                if current_chapter:
-                    structured_data.append(current_chapter)
-                # Start a new chapter
-                current_chapter = {
-                    "chapter_number": chapter_number,
-                    "chapter_title": None,  # Title will be added if found
-                    "sections": [],
-                    "content": []
-                }
-                current_chapter_number = chapter_number
-                current_section = None  # Reset the current section
-            continue  # Skip processing further since it's just a chapter header
+        # Check for large chapter headers
+        chapter_match_large = chapter_pattern_large.match(line)
+        if chapter_match_large:
+            chapter_number = chapter_match_large.group(1)
+            chapter_title = chapter_match_large.group(2) or f"Chapter {chapter_number}"
+            chapter_description = ""
+            # Save the current chapter if it exists
+            if current_chapter:
+                structured_data.append(current_chapter)
+            # Start a new chapter
+            current_chapter = {
+                "chapter_number": chapter_number,
+                "chapter_title": chapter_title,
+                "chapter_description": "",
+                "sections": [],
+                "content": []
+            }
+            current_section = None  # Reset the current section
+            continue
+
+        # Check for small chapter headers (ignore or handle them)
+        chapter_match_small = chapter_pattern_small.match(line)
+        if chapter_match_small and current_chapter:
+            # Optionally handle small chapter headers, e.g., append content
+            current_chapter["content"].append(line)
+            continue
 
         # Check for sections
         section_match = section_pattern.match(line)
@@ -77,6 +84,7 @@ structured_data = parse_text_to_structure(raw_text_path)
 
 # Save to JSON
 output_path = os.path.join(script_dir, "../Processed_Text/Introduction_to_Programming_Using_Java/structured_text.json")
+os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
 with open(output_path, "w", encoding="utf-8") as json_file:
     json.dump(structured_data, json_file, indent=4, ensure_ascii=False)
